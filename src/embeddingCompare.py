@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from transformer_lens import HookedTransformer
 
-from typing import Union, List
+from typing import Union, List, Tuple, Dict
 
 def compare_word_embeddings(model: HookedTransformer, token1: int, token2: int) -> Union[np.ndarray, float]:
     '''Calculate the vector that describes the translation from token1 to token2.
@@ -49,15 +49,17 @@ def compute_average_embedding_direction(model: HookedTransformer, token1: List[i
     embeddings2 = [model.embed(t).detach().numpy() for t in token2]
 
     # Calculate the difference between the two embeddings
-
     differences = np.array(embeddings2) - np.array(embeddings1)
 
     mean_vector = np.mean(differences, axis=0).flatten()
     std_vector = np.std(differences, axis=0).flatten()
 
-    return mean_vector, std_vector
+    min_vector = np.min(differences, axis=0).flatten()
+    max_vector = np.max(differences, axis=0).flatten()
 
-def print_embedding_compare(mean_vector: np.ndarray, std_vector: np.ndarray, n_interest: int) -> None:
+    return mean_vector, std_vector, min_vector, max_vector
+
+def print_embedding_compare(mean_vector: np.ndarray, std_vector: np.ndarray, min_vector: np.ndarray, max_vector: np.ndarray, n_interest: int) -> None:
     '''Print the top n dimensions with the highest magnitude, along with the corresponding magnitude and std.
     
     Args:
@@ -70,7 +72,7 @@ def print_embedding_compare(mean_vector: np.ndarray, std_vector: np.ndarray, n_i
     print("Highest mean values:")
     for n in range(n_interest):
         ind = mean_vector_sorted_ind[-(n+1)]
-        print(f"Index: {ind}, Mean: {mean_vector[ind]}, Std: {std_vector[ind]}")
+        print(f"Index: {ind},\tMean: {mean_vector[ind]:.4f},\tStd: {std_vector[ind]:.4f},\tMin: {min_vector[ind]:.4f},\tMax: {max_vector[ind]:.4f}")
 
 def plot_embedding_pca(
         ax: plt.Axes,
@@ -154,3 +156,41 @@ def plot_embedding_pca(
     ax.set_title(f"PCA of {token1_name} and {token2_name} embeddings")
     
     return pca
+
+def compare_unembedding_distribution(
+        model: HookedTransformer,
+        input_embedding: torch.Tensor,
+        target_token: int,
+        n_interest: int
+) -> Tuple[float, Dict[str, float]]:
+    '''Calculates the probability of an embedding being a desired token.
+    
+    Args:
+        model (HookedTransformer): The model used for embedding.
+        input_embedding (torch.Tensor): The embedding to compare.
+        target_token (int): The token to compare against.
+        n_interest (int): The number of top probabilities to return.
+    
+    Returns:
+        probability (float): The probability of the embedding being the target token.
+        top_tokens (Dict[str, float]): The top n tokens with the highest probabilities.
+    '''
+    # Get the logits for the input embedding
+    logits = model.unembed(input_embedding)
+    logits = logits.squeeze(0)
+    logits = logits.softmax()
+
+    # Get target token probability
+    target_prob = logits[target_token].item()
+
+    # Get top n tokens
+    top_probabilities, top_indices = torch.topk(logits, n_interest)
+    
+    top_tokens = {}
+    for i in range(n_interest):
+        token = model.tokenizer.decode([top_indices[i].item()])
+        top_tokens[token] = top_probabilities[i].item()
+    
+    return target_prob, top_tokens
+
+    

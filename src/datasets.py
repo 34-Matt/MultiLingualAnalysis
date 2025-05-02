@@ -124,13 +124,13 @@ def loadMyWordPairs(lang: str) -> pd.DataFrame:
         Data (DataFrame): DataFrame containing the word pairs.
     """
     if lang.lower() in ['japanese', 'jpn']:
-        filename = os.path.join("Downloads", "JapaneseWords.csv")
-        data = pd.read_csv(filename, header=0, names=["lang2", "lang1"], encoding='cp1252')
+        filename = os.path.join("Downloads", "JapaneseWords.tsv")
+        data = pd.read_csv(filename, header=0, names=["lang2", "lang1"], encoding='utf-8', sep="\t")
         data = data.iloc[:120, :]
         return data
     elif lang.lower() in ['spanish', 'spa']:
         filename = os.path.join("Downloads", "SpanishWords.csv")
-        data = pd.read_csv(filename, header=0, names=["lang2", "lang1"], encoding='cp1252')
+        data = pd.read_csv(filename, header=0, names=["lang1", "lang2"], encoding='utf-8')
         data = data.iloc[:400, :]
         return data
 
