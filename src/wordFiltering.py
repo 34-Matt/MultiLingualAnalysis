@@ -1,4 +1,7 @@
+import re
+import pandas as pd
 from transformer_lens import HookedTransformer
+from transformers import AutoTokenizer
 
 def is_single_token_filter(model: HookedTransformer, text: str) -> bool:
     '''Filters out text that consists of more than one token.
@@ -13,31 +16,76 @@ def is_single_token_filter(model: HookedTransformer, text: str) -> bool:
     tokens = model.to_tokens(text, prepend_bos=False, append_eos=False)
     return len(tokens) == 1
 
-def convert_to_single_token(model: HookedTransformer, text: str) -> str:
+def split_multitext_entries(dataset: pd.DataFrame) -> pd.DataFrame:
+    '''Some words in the dictionary have comma separations when there are multiple translations. Split these into multiple entries.
+    
+    Args:
+        dataset (pd.DataFrame): The dataset to process.
+    
+    Returns:
+        pd.DataFrame: The processed dataset with split entries.
+    '''
+    # Split and explode each column
+    for column in dataset.columns:
+        dataset[column] = dataset[column].str.split(pat=',(?![^(]*\))', expand=False)
+        dataset = dataset.explode(column)
+        dataset[column] = dataset[column].str.strip()
+        dataset = dataset[dataset[column] != '']  # Remove empty entries
+        dataset = dataset.drop_duplicates(subset=[column])  # Remove duplicates
+    
+    dataset = dataset.reset_index(drop=True)
+    return dataset
+    
+def convert_to_single_token(model: AutoTokenizer, text: str) -> str:
     '''Converts text to a single token using the transformer model.
     
     Args:
-        model (HookedTransformer): The transformer model to use for tokenization.
+        model (AutoTokenizer): The transformer model to use for tokenization.
         text (str): The text to convert.
     
     Returns:
         token (int): The single token representation of the text.
     '''
-    tokens = model.to_tokens(text, prepend_bos=False, append_eos=False)
-    if len(tokens) == 1:
-        return text
-    else:
-        # Remove 'to ', 'the ', 'a ', 'an ' from english text
+    tokens = model.tokenize(text)
+    text_length = len(text)
+    if len(tokens) > 1:
+        # Remove additional information in () or []
+        text = re.sub(r'\(.*?\)|\[.*?\]', '', text)
+
+        # Remove prepositions from english text
         if text.startswith('to '):
             text = text[3:]
-        elif text.startswith('the '):
+        elif text.startswith('for '):
+            text = text[4:]
+        elif text.startswith('in '):
+            text = text[3:]
+        elif text.startswith('on '):
+            text = text[3:]
+        elif text.startswith('with '):
+            text = text[5:]
+        elif text.startswith('at '):
+            text = text[3:]
+        elif text.startswith('by '):
+            text = text[3:]
+        elif text.startswith('be '):
+            text = text[3:]
+
+        # Remove articles from english text
+        if text.startswith('the '):
             text = text[4:]
         elif text.startswith('a '):
             text = text[2:]
         elif text.startswith('an '):
             text = text[3:]
         
-        # Remove 'la ', 'el ', 'los ', 'las ', 'un ', 'una ' from spanish text
+        # Remove ' de' from spanish text
+        if text.endswith(' de'):
+            text = text[:-3]
+        
+        if text.startswith('de '):
+            text = text[3:]
+
+        # Remove articles from spanish text
         if text.startswith('la '):
             text = text[3:]
         elif text.startswith('el '):
@@ -51,9 +99,11 @@ def convert_to_single_token(model: HookedTransformer, text: str) -> str:
         elif text.startswith('una '):
             text = text[4:]
 
-        # Remove ' de' from spanish text
-        if text.endswith(' de'):
-            text = text[:-3]
+    text = text.strip()
+    if len(text) == text_length:
+        return text
+    else:
+        return convert_to_single_token(model, text)
 
 def japanese_is_kanji(text: str) -> bool:
     '''Checks if the text contains Kanji.

@@ -115,8 +115,8 @@ def loadTatoebaPairs(lang1:str, lang2:str) -> pd.DataFrame:
     filename = filename[0]
     return pd.read_csv(filename, sep="\t", header=None, names=["id1", "lang1", "id2", "lang2"])
 
-def loadMyWordPairs(lang: str) -> pd.DataFrame:
-    """Loads a custom word pairs dataset.
+def loadRedditPairs(lang: str) -> pd.DataFrame:
+    """Loads the Reddit word pairs dataset.
     
     Args:
         lang (str): The language code.
@@ -124,9 +124,11 @@ def loadMyWordPairs(lang: str) -> pd.DataFrame:
         Data (DataFrame): DataFrame containing the word pairs.
     """
     if lang.lower() in ['japanese', 'jpn']:
-        filename = os.path.join("Downloads", "JapaneseWords.tsv")
-        data = pd.read_csv(filename, header=0, names=["lang2", "lang1"], encoding='utf-8', sep="\t")
-        data = data.iloc[:120, :]
+        filename = os.path.join("Downloads", "JapaneseReddit.csv")
+        data = pd.read_csv(filename, header=0, encoding='utf-8')
+        data = data[["japanese", "translation"]]
+        data.columns = ["lang2", "lang1"]
+        data = data.dropna()
         return data
     elif lang.lower() in ['spanish', 'spa']:
         filename = os.path.join("Downloads", "SpanishWords.csv")
