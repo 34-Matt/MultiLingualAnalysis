@@ -1,34 +1,72 @@
-from datasets import loadRedditPairs, loadTatoebaPairs
-from wordFiltering import split_multitext_entries, convert_to_single_token
+from .datasets import loadRedditPairs, loadTatoebaPairs
+from .wordFiltering import split_multitext_entries, convert_to_single_token, remove_non_single_token_entries
 from transformers import AutoTokenizer
+import pandas as pd
+from typing import Dict, Tuple, Union
 
-# Decorators for loading datasets
-def filter_words(func):
-    def wrapper(*args, model: AutoTokenizer, **kwargs):
-        dataset = func(*args, **kwargs)
 
-        dataset = split_multitext_entries(dataset)
-        dataset["lang1"] = dataset["lang1"].apply(lambda x: convert_to_single_token(model, x))
-        dataset["lang2"] = dataset["lang2"].apply(lambda x: convert_to_single_token(model, x))
+source_types = {
+    "word": ["reddit"],
+    "sentence": ["tatoeba"]
+}
 
-        return dataset
-    return wrapper
+def load_datasets(
+        lang: str,
+        source: str,
+        *,
+        model: AutoTokenizer = None,
+        filter_words: bool = False,
+        remove_non_single_token: bool = False,
+        keep_tokens: bool = False
+        ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    """Load datasets based on language and dataset type."""
+    # Validate inputs
+    lang = lang.lower()
+    source = source.lower()
 
-# Loading words
-@filter_words
-def loadJapaneseWords():
-    return loadRedditPairs("Japanese")
+    if source in source_types['word']:
+        # Load words
+        if lang in ["japanese", "jpn"]:
+            data = loadRedditPairs("Japanese")
+        elif lang in ["spanish", "esp"]:
+            data = loadRedditPairs("Spanish")
+        elif lang in ["all", "a"]:
+            data = {
+                "jpn": loadRedditPairs("Japanese"),
+                "esp": loadRedditPairs("Spanish")
+            }
+        else:
+            raise ValueError(f"Unsupported language: {lang}")
+        
+        # Filter words if specified
+        if (filter_words or remove_non_single_token) and model is not None:
+            if isinstance(data, dict):
+                for key in data:
+                    data[key]['lang1'] = data[key]['lang1'].apply(lambda x: convert_to_single_token(model, x))
+                    data[key]['lang2'] = data[key]['lang2'].apply(lambda x: convert_to_single_token(model, x))
+            else:
+                data['lang1'] = data['lang1'].apply(lambda x: convert_to_single_token(model, x))
+                data['lang2'] = data['lang2'].apply(lambda x: convert_to_single_token(model, x))
+        
+        if remove_non_single_token and model is not None:
+            if isinstance(data, dict):
+                for key in data:
+                    data[key] = remove_non_single_token_entries(data[key], model, keep_tokens)
+            else:
+                data = remove_non_single_token_entries(data, model, keep_tokens)
+    
+    elif source in source_types["sentence"]:
+        # Load sentences
+        if lang in ["japanese", "jpn"]:
+            data = loadTatoebaPairs("English", ["Japanese"])
+        elif lang in ["spanish", "esp"]:
+            data = loadTatoebaPairs("English", ["Spanish"])
+        elif lang in ["all", "a"]:
+            data = loadTatoebaPairs("English", ["Japanese", "Spanish"])
+        else:
+            raise ValueError(f"Unsupported language: {lang}")
+        
+    else:
+        raise ValueError(f"Unsupported source: {source}")
 
-@filter_words
-def loadSpanishWords():
-    return loadRedditPairs("Spanish")
-
-def loadJapaneseSentences():
-    return loadTatoebaPairs("English", ["Japanese"])
-
-def loadSpanishSentences():
-    return loadTatoebaPairs("English", ["Spanish"])
-
-def loadAllSentences():
-    """Load all sentences from Tatoeba dataset."""
-    return loadTatoebaPairs("English", ["Japanese", "Spanish"])
+    return data

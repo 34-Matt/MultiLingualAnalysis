@@ -2,6 +2,21 @@ import re
 import pandas as pd
 from transformer_lens import HookedTransformer
 from transformers import AutoTokenizer
+from typing import Union, List
+
+def tokenize(model: Union[HookedTransformer, AutoTokenizer], text: str) -> List[int]:
+    '''Tokenizes the input with the given model.
+    
+    Args:
+        model (HookedTransformer | Autoencoder): The transformer model
+        text (str): The text to tokenize
+    '''
+    if isinstance(model, HookedTransformer):
+        return model.to_tokens(text, prepend_bos=False).flatten().tolist()
+    elif isinstance(model, AutoTokenizer):
+        return model.tokenize(text)
+    else:
+        raise TypeError(f"Unable to work is model of type: {type(model)}")
 
 def is_single_token_filter(model: HookedTransformer, text: str) -> bool:
     '''Filters out text that consists of more than one token.
@@ -13,7 +28,7 @@ def is_single_token_filter(model: HookedTransformer, text: str) -> bool:
     Returns:
         keep (bool): True if the text consists of a single token, False otherwise.
     '''
-    tokens = model.to_tokens(text, prepend_bos=False, append_eos=False)
+    tokens = tokenize(model, text)
     return len(tokens) == 1
 
 def split_multitext_entries(dataset: pd.DataFrame) -> pd.DataFrame:
@@ -46,7 +61,8 @@ def convert_to_single_token(model: AutoTokenizer, text: str) -> str:
     Returns:
         token (int): The single token representation of the text.
     '''
-    tokens = model.tokenize(text)
+    tokens = tokenize(model, text)
+
     text_length = len(text)
     if len(tokens) > 1:
         # Remove additional information in () or []
@@ -104,6 +120,29 @@ def convert_to_single_token(model: AutoTokenizer, text: str) -> str:
         return text
     else:
         return convert_to_single_token(model, text)
+    
+def remove_non_single_token_entries(dataset: pd.DataFrame, model: HookedTransformer, keep_tokens: bool = False) -> pd.DataFrame:
+    '''Removes entries from the dataset where either language is not a single token.
+    
+    Args:
+        dataset (pd.DataFrame): The dataset to filter.
+        model (HookedTransformer): The transformer model to use for tokenization.
+        keep_tokens (bool): Whether to keep the token entries (lang#_token) (True) or not (False)
+
+    Returns:
+        pd.DataFrame: The filtered dataset containing only single-token entries.
+    '''
+    # Tokenize and filter the dataset
+    dataset['lang1_tokens'] = dataset['lang1'].apply(lambda x: tokenize(model, x))
+    dataset['lang2_tokens'] = dataset['lang2'].apply(lambda x: tokenize(model, x))
+    
+    dataset = dataset[dataset['lang1_tokens'].apply(len) == 1]
+    dataset = dataset[dataset['lang2_tokens'].apply(len) == 1]
+
+    if not keep_tokens:
+        dataset = dataset.drop(columns=['lang1_tokens', 'lang2_tokens'])
+    
+    return dataset
 
 def japanese_is_kanji(text: str) -> bool:
     '''Checks if the text contains Kanji.

@@ -4,10 +4,14 @@ Specifically, it looks for words that get converted to multiple tokens by a spec
 This can be useful for determining extra words in a definition that are not necessary.
 '''
 from transformers import AutoTokenizer
-from src.datasets import loadRedditPairs, loadTatoebaPairs
-from src.wordFiltering import split_multitext_entries, convert_to_single_token
 import argparse
 import pandas as pd
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from src.datasets import loadRedditPairs
+from src.wordFiltering import split_multitext_entries, convert_to_single_token
 
 # Load arguments
 parser = argparse.ArgumentParser(description="View words that are converted to multiple tokens by a model.")
@@ -47,6 +51,8 @@ for row in dataset.iterrows():
     # Tokenize the words
     tokens_english = tokenizer.tokenize(word_english)
     tokens_lang = tokenizer.tokenize(word_lang)
+    print(tokens_lang)
+    dfasdf
 
     # Check if original word is multi-token
     tokens_english_original_length = len(tokens_english)

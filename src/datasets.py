@@ -130,17 +130,53 @@ def loadRedditPairs(lang: str) -> pd.DataFrame:
         data.columns = ["lang2", "lang1"]
         data = data.dropna()
         return data
-    elif lang.lower() in ['spanish', 'spa']:
-        filename = os.path.join("Downloads", "SpanishWords.csv")
-        data = pd.read_csv(filename, header=0, names=["lang1", "lang2"], encoding='utf-8')
-        data = data.iloc[:400, :]
+    elif lang.lower() in ['spanish', 'spa', 'esp']:
+        filename = os.path.join("Downloads", "SpanishReddit.csv")
+        data = pd.read_csv(filename, header=None, names=["lang1", "lang2", "temp1", "temp2", "temp3"], encoding='utf-8') 
+        
+        rows_with2 = data.notnull().sum(axis=1)
+        data = data[rows_with2 == 2]
+        data.drop(columns=["temp1", "temp2", "temp3"], inplace=True)
+        data.rename({1: 'lang1', 2: 'lang2'}, inplace=True)
+        
         return data
 
 
 if __name__ == "__main__":
-    # Example usage
-    primary_language = "eng"
-    secondary_languages = ["spa", "jpn"]
-    df = createTatoebaPairs(primary_language, secondary_languages)
-    print(df.head())
-    df.to_csv(os.path.join("Downloads", "processed_eng_spa_jpn.csv"), index=False)
+    import argparse
+    parser = argparse.ArgumentParser(description="Download or process language datasets.")
+    parser.add_argument(
+        "--dataset",
+        nargs="+",
+        choices=["tatoeba", "reddit"],
+        default=['reddit'],
+        help="Which dataset to download/process: 'tatoeba', 'reddit', or 'all' (default: all)"
+    )
+    parser.add_argument(
+        "--languages",
+        nargs="+",
+        choices=["spa", "jpn"],
+        default=["spa", "jpn"],
+        help="Secondary language codes for Tatoeba (default: spa jpn)"
+    )
+    args = parser.parse_args()
+
+    if "tatoeba" in args.dataset:
+        df = createTatoebaPairs('eng', args.languages)
+        print(df.head())
+        df.to_csv(
+            os.path.join(
+                "Downloads",
+                f"processed_{args.primary_language}_{'_'.join(args.languages)}.csv"
+            ),
+            index=False
+        )
+
+    if "reddit" in args.dataset:
+        for lang in args.languages:
+            if lang.lower() in ['japanese', 'jpn']:
+                print("Download the file from [u/Lammmas' Google Sheet](https://docs.google.com/spreadsheets/d/1cT16lcMnSoWW_VNO8DgPMKhPkXVj41ow7RZ0kuZQ4Jk/edit?gid=189116820#gid=189116820) and save it as `JapaneseReddit.csv` in the `Downloads` directory.")
+            elif lang.lower() in ['spanish', 'spa']:
+                print("Download the file from [u/raitro's Google Doc](https://docs.google.com/document/d/1aXm7BP-AYg3gU-4NWcGBjg-I8gd2fu6A2IUa8cvfV8Q/edit?tab=t.0). This must first be downloaded as a plain text file (`.txt`). Then, the file can be renamed to `SpanishReddit.csv` and saved in the `Downloads` directory.")
+            else:
+                print(f"Unable to work with language: {lang}")

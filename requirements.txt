@@ -2,3 +2,4 @@ transformer-lens==2.15.0
 dotenv==0.9.9
 scikit-learn==1.6.1
 ipympl==0.9.7
+openpyxl==3.1.5

@@ -175,6 +175,7 @@ cython_debug/
 
 # My System
 Downloads/
+output_*
 
 # VS Code
 .vscode/
