@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from transformer_lens import HookedTransformer
 
+from .plotting_util import line_segment
+from .math_util import my_pca
+
 from typing import Union, List, Tuple, Dict
 
 def compare_word_embeddings(model: HookedTransformer, token1: int, token2: int) -> Union[np.ndarray, float]:
@@ -81,7 +84,9 @@ def plot_embedding_pca(
         token2: List[int],
         n_dim: int,
         token1_name: str,
-        token2_name: str) -> PCA:
+        token2_name: str,
+        transform: np.ndarray = None,
+        scatter: bool = True) -> np.ndarray:
     '''Plot the PCA of the embeddings of the tokens.
     
     Args:
@@ -92,9 +97,11 @@ def plot_embedding_pca(
         n_dim (int): The number of dimensions when creating the PCA.
         token1_name (str): The name of the first token.
         token2_name (str): The name of the second token.
+        transform (np.ndarray, optional): The transform matrix to use for PCA. If None, it will be calculated.
+        scatter (bool, optional): Whether to plot the points as a scatter plot (True) or as lines from token 1 to 2 (False). Defaults to True.
     
     Returns:
-        pca (PCA): The PCA object used to transform the data.
+        transform (np.ndarray): The transform matrix used for PCA.
     '''
 
     # Verify n_dim is plottable
@@ -108,15 +115,21 @@ def plot_embedding_pca(
     embeddings1 = np.array(embeddings1).reshape(len(token1), -1)
     embeddings2 = np.array(embeddings2).reshape(len(token2), -1)
 
-    # Calculate the difference between the two embeddings
-    differences = embeddings2 - embeddings1
+    if transform is None:
+        # Calculate the difference between the two embeddings
+        differences = embeddings2 - embeddings1
+        
+        # Normalize difference
+        diff_max = np.max(differences)
+        differences = differences * (100/diff_max)
+        #differences *= 10  # Scale average difference can be very small
 
-    # Perform PCA on the differences
-    pca = PCA(n_components=n_dim)
-    pca.fit_transform(differences)
-
-    token1_pca = pca.transform(embeddings1)
-    token2_pca = pca.transform(embeddings2)
+        # Perform PCA on the differences
+        _, transform = my_pca(differences, n_components=n_dim)
+    
+    # Apply the PCA transformation
+    token1_pca = embeddings1 @ transform
+    token2_pca = embeddings2 @ transform
 
     # Plot the PCA result
     if n_dim == 1:
@@ -137,15 +150,21 @@ def plot_embedding_pca(
         ax.set_ylabel("PCA Dimension 1")
     
     elif n_dim == 2:
-        ax.scatter(token1_pca[:, 0], token1_pca[:, 1], color="C0", label=token1_name)
-        ax.scatter(token2_pca[:, 0], token2_pca[:, 1], color="C1", label=token2_name)
+        if scatter:
+            ax.scatter(token1_pca[:, 0], token1_pca[:, 1], color="Blue", label=token1_name)
+            ax.scatter(token2_pca[:, 0], token2_pca[:, 1], color="Red", label=token2_name)
+        else:
+            line_segment(token1_pca, token2_pca, ax=ax, cmap=plt.get_cmap("RdBu_r"))
         ax.set_xlabel("PCA Dimension 1")
         ax.set_ylabel("PCA Dimension 2")
         ax.legend()
     
     elif n_dim == 3:
-        ax.scatter(token1_pca[:, 0], token1_pca[:, 1], token1_pca[:, 2], color="C0", label=token1_name)
-        ax.scatter(token2_pca[:, 0], token2_pca[:, 1], token2_pca[:, 2], color="C1", label=token2_name)
+        if scatter:
+            ax.scatter(token1_pca[:, 0], token1_pca[:, 1], token1_pca[:, 2], color="Blue", label=token1_name)
+            ax.scatter(token2_pca[:, 0], token2_pca[:, 1], token2_pca[:, 2], color="Red", label=token2_name)
+        else:
+            line_segment(token1_pca, token2_pca, ax=ax, cmap=plt.get_cmap("RdBu_r"))
         ax.set_xlabel("PCA Dimension 1")
         ax.set_ylabel("PCA Dimension 2")
         ax.set_zlabel("PCA Dimension 3")
@@ -155,7 +174,7 @@ def plot_embedding_pca(
         raise ValueError("n_dim must be between 1, 2, or 3.")
     ax.set_title(f"PCA of {token1_name} and {token2_name} embeddings")
     
-    return pca
+    return transform
 
 def compare_unembedding_distribution(
         model: HookedTransformer,
@@ -192,5 +211,3 @@ def compare_unembedding_distribution(
         top_tokens[token] = top_probabilities[i].item()
     
     return target_prob, top_tokens
-
-    
