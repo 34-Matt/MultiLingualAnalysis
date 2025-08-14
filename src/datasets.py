@@ -3,8 +3,66 @@ import wget
 from glob import glob
 import tarfile
 import pandas as pd
+import json
 
-from typing import List
+from typing import List, Dict
+
+
+EXAMPLE_TRANSLATION_TEXT = {
+    "English2Japanese": {
+        "English": "Translate this into Japanese.\nEnglish: {}\nJapanese: ",
+        "Spanish": "Por favor traduzca al japonés.\nInglés: {}\nJaponés: ",
+        "Japanese": "日本語に翻訳してください。\n英語:{}\n日本語:",
+    },
+    "Japanese2English": {
+        "English": "Translate this into English.\nJapanese: {}\nEnglish: ",
+        "Spanish": "Por favor traduzca al inglés.\nJaponés: {}\nInglés: ",
+        "Japanese": "英語に翻訳してください。\n日本語:{}\n英語:",
+    },
+    "English2Spanish": {
+        "English": "Translate this into Spanish.\nEnglish: {}\nSpanish: ",
+        "Spanish": "Por favor traduzca al español.\nInglés: {}\nEspañol: ",
+        "Japanese": "スペイン語に翻訳してください。\n英語:{}\nスペイン語:",
+    },
+    "Spanish2English": {
+        "English": "Translate this into English.\nSpanish: {}\nEnglish: ",
+        "Spanish": "Por favor traduzca al inglés.\nEspañol: {}\nInglés: ",
+        "Japanese": "英語に翻訳してください。\nスペイン語:{}\n英語:",
+    }
+}
+
+LANGUAGE_LONGHAND = {
+    "English": ["english", "eng"],
+    "Japanese": ["japanese", "jpn", "jp"],
+    "Spanish": ["spanish", "esp", "sp"],
+}
+
+LANGUAGE_SHORTHAND = {
+    "eng": ["english", "eng"],
+    "jpn": ["japanese", "jpn", "jp"],
+    "esp": ["spanish", "esp", "sp"],
+}
+
+def getLanguage(text: str, shorthand: bool = False) -> str:
+    """Ensures a uniform method of refering to languages.
+    
+    Args:
+        text (str): The input text referencing the languages
+        shorthand (bool): Whether to return the shorthand (True) or longhand (False, default)
+
+    Returns:
+        output (str): The output text of the language
+    """
+    t = text.lower()
+    if shorthand:
+        dictionary = LANGUAGE_SHORTHAND
+    else:
+        dictionary = LANGUAGE_LONGHAND
+
+    for key, value in dictionary.items():
+        if t in value:
+            return key
+    raise IndexError(f"The language {text} is not found in the LANGUAGE_SHORTHAND dataset.")
 
 def getTatoeba() -> str:
     """
@@ -113,7 +171,7 @@ def loadTatoebaPairs(lang1:str, lang2:str) -> pd.DataFrame:
         raise FileNotFoundError(f"No paired dataset found for languages {lang1} and {lang2}. Please download from https://tatoeba.org/en/downloads.")
 
     filename = filename[0]
-    return pd.read_csv(filename, sep="\t", header=None, names=["id1", "lang1", "id2", "lang2"])
+    return pd.read_csv(filename, sep="\t", header=None, names=["id1", "lang1", "id2", "lang2"], on_bad_lines="warn")
 
 def loadRedditPairs(lang: str) -> pd.DataFrame:
     """Loads the Reddit word pairs dataset.
@@ -123,23 +181,62 @@ def loadRedditPairs(lang: str) -> pd.DataFrame:
     Returns:
         Data (DataFrame): DataFrame containing the word pairs.
     """
-    if lang.lower() in ['japanese', 'jpn']:
+    if lang.lower() in LANGUAGE_SHORTHAND['jpn']:
         filename = os.path.join("Downloads", "JapaneseReddit.csv")
         data = pd.read_csv(filename, header=0, encoding='utf-8')
         data = data[["japanese", "translation"]]
         data.columns = ["lang2", "lang1"]
         data = data.dropna()
-        return data
-    elif lang.lower() in ['spanish', 'spa', 'esp']:
+    elif lang.lower() in LANGUAGE_SHORTHAND['esp']:
         filename = os.path.join("Downloads", "SpanishReddit.csv")
-        data = pd.read_csv(filename, header=None, names=["lang1", "lang2", "temp1", "temp2", "temp3"], encoding='utf-8') 
-        
-        rows_with2 = data.notnull().sum(axis=1)
-        data = data[rows_with2 == 2]
-        data.drop(columns=["temp1", "temp2", "temp3"], inplace=True)
-        data.rename({1: 'lang1', 2: 'lang2'}, inplace=True)
-        
-        return data
+        data = pd.read_csv(filename, header=None, names=["lang1", "lang2"], encoding='utf-8', on_bad_lines="warn") 
+    else:
+        raise ValueError(f"Unknown file for language {lang}")
+    
+    return data
+    
+def createPatternlenJson(
+        unformatted_prompt: Dict[str, List[str]],
+        text_input: pd.Series,
+        text_target: pd.Series,
+        output: str = "output.jsonl",
+        append: bool = True,
+        source: str = "personal",
+        direction: str = "personal"
+        ) -> None:
+    """Creates a json file use with pattern lens.
+    
+    Args:
+        unformatted_prompt (Dict[str, List[str]]): All the base strings used to generate the dataset. Unformatted string with one inputs for text. Keys are the title for the prompt.
+        text_input (pd.Series): The text that goes into the unformatted_prompt
+        text_target (pd.Series): The text that should be returned by the model when given the formatted string
+        output (str): The output json file to save the formated prompts to (default to output.jsonl)
+        append (bool): Whether to append the generated prompts to an existing json file (True; default) or not (False)
+        source (str): Name of the source of the data (optional for tracking purposes)
+        direction (str): The direction from starting language to target language (optional for tracking purposes)
+    """
+    mode = 'a' if append else 'w'
+    with open(output, mode, encoding='utf-8') as f:
+        for title, prompt in unformatted_prompt.items():
+            for ti, tt in zip(text_input, text_target):
+                formatted_prompt = prompt.format(ti)
+                entry = {
+                    "text": formatted_prompt,
+                    "target": tt, 
+                    "meta": {"pile_set_name": source, "direction": direction, "prompt": title}
+                }
+                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+
+def loadPatternlenJson(file_name: str) -> pd.DataFrame:
+    """Loads data from a jsonl file as required by patternlen
+    
+    Args:
+        file_name (str): The file to load
+    
+    Returns:
+        data (pd.DataFrame): The loaded data
+    """
+    return pd.read_json(file_name, lines=True)
 
 
 if __name__ == "__main__":
@@ -150,33 +247,104 @@ if __name__ == "__main__":
         nargs="+",
         choices=["tatoeba", "reddit"],
         default=['reddit'],
-        help="Which dataset to download/process: 'tatoeba', 'reddit', or 'all' (default: all)"
+        help="Which dataset to download/process: 'tatoeba', 'reddit' (default: tatoeba reddit)"
     )
     parser.add_argument(
         "--languages",
         nargs="+",
-        choices=["spa", "jpn"],
-        default=["spa", "jpn"],
-        help="Secondary language codes for Tatoeba (default: spa jpn)"
+        choices=["esp", "jpn"],
+        default=["esp", "jpn"],
+        help="Secondary language codes for Tatoeba (default: esp jpn)"
+    )
+    parser.add_argument(
+        "--translate_sentence",
+        action="store_true",
+        help="When active, convert preloaded datasets into sentences for translations"
     )
     args = parser.parse_args()
 
-    if "tatoeba" in args.dataset:
-        df = createTatoebaPairs('eng', args.languages)
-        print(df.head())
-        df.to_csv(
-            os.path.join(
-                "Downloads",
-                f"processed_{args.primary_language}_{'_'.join(args.languages)}.csv"
-            ),
-            index=False
-        )
-
-    if "reddit" in args.dataset:
+    if args.translate_sentence:
         for lang in args.languages:
-            if lang.lower() in ['japanese', 'jpn']:
-                print("Download the file from [u/Lammmas' Google Sheet](https://docs.google.com/spreadsheets/d/1cT16lcMnSoWW_VNO8DgPMKhPkXVj41ow7RZ0kuZQ4Jk/edit?gid=189116820#gid=189116820) and save it as `JapaneseReddit.csv` in the `Downloads` directory.")
-            elif lang.lower() in ['spanish', 'spa']:
-                print("Download the file from [u/raitro's Google Doc](https://docs.google.com/document/d/1aXm7BP-AYg3gU-4NWcGBjg-I8gd2fu6A2IUa8cvfV8Q/edit?tab=t.0). This must first be downloaded as a plain text file (`.txt`). Then, the file can be renamed to `SpanishReddit.csv` and saved in the `Downloads` directory.")
-            else:
-                print(f"Unable to work with language: {lang}")
+            l = getLanguage(lang)
+            existing_file = False
+
+            # Load the dataset
+            for dataset in args.dataset:
+                if dataset.lower() == "tatoeba":
+                    cur_data = loadTatoebaPairs("English", l)
+                elif dataset.lower() == "reddit":
+                    cur_data = loadRedditPairs(l)
+                else:
+                    print(f"Cannot load dataset {dataset}")
+                    continue
+                try:
+                    pass
+                except Exception as e:
+                    print(f"Found error will loading dataset {dataset}")
+                    print(e)
+                    continue
+                
+                # Create and save the prompts
+                if l == "Japanese":
+                    createPatternlenJson(
+                        EXAMPLE_TRANSLATION_TEXT["English2Japanese"],
+                        cur_data['lang1'],
+                        cur_data['lang2'],
+                        os.path.join("Downloads", "English2JapaneseTranslate.csv"),
+                        existing_file,
+                        dataset.title(),
+                        "English2Japanese"
+                    )
+                    createPatternlenJson(
+                        EXAMPLE_TRANSLATION_TEXT["Japanese2English"],
+                        cur_data['lang2'],
+                        cur_data['lang1'],
+                        os.path.join("Downloads", "Japanese2EnglishTranslate.csv"),
+                        existing_file,
+                        dataset.title(),
+                        "Japanese2English"
+                    )
+                elif l == "Spanish":
+                    createPatternlenJson(
+                        EXAMPLE_TRANSLATION_TEXT["English2Spanish"],
+                        cur_data['lang1'],
+                        cur_data['lang2'],
+                        os.path.join("Downloads", "English2SpanishTranslate.csv"),
+                        existing_file,
+                        dataset.title(),
+                        "English2Spanish"
+                    )
+                    createPatternlenJson(
+                        EXAMPLE_TRANSLATION_TEXT["Spanish2English"],
+                        cur_data['lang2'],
+                        cur_data['lang1'],
+                        os.path.join("Downloads", "Spanish2EnglishTranslate.csv"),
+                        existing_file,
+                        dataset.title(),
+                        "Spanish2English"
+                    )
+                else:
+                    raise IndexError(f"Unknown language {l} somehow overwrote `l`")
+            
+                existing_file = True
+
+    else:
+        if "tatoeba" in args.dataset:
+            df = createTatoebaPairs('eng', args.languages)
+            print(df.head())
+            df.to_csv(
+                os.path.join(
+                    "Downloads",
+                    f"processed_{args.primary_language}_{'_'.join(args.languages)}.csv"
+                ),
+                index=False
+            )
+
+        if "reddit" in args.dataset:
+            for lang in args.languages:
+                if lang.lower() in LANGUAGE_SHORTHAND["jpn"]:
+                    print("Download the file from [u/Lammmas' Google Sheet](https://docs.google.com/spreadsheets/d/1cT16lcMnSoWW_VNO8DgPMKhPkXVj41ow7RZ0kuZQ4Jk/edit?gid=189116820#gid=189116820) and save it as `JapaneseReddit.csv` in the `Downloads` directory.")
+                elif lang.lower() in LANGUAGE_SHORTHAND["esp"]:
+                    print("Download the file from [u/raitro's Google Doc](https://docs.google.com/document/d/1aXm7BP-AYg3gU-4NWcGBjg-I8gd2fu6A2IUa8cvfV8Q/edit?tab=t.0). This must first be downloaded as a plain text file (`.txt`). Then, the file can be renamed to `SpanishReddit.csv` and saved in the `Downloads` directory.")
+                else:
+                    print(f"Unable to work with language: {lang}")

@@ -1,4 +1,4 @@
-from .datasets import loadRedditPairs, loadTatoebaPairs
+from .datasets import loadRedditPairs, loadTatoebaPairs, LANGUAGE_LONGHAND, LANGUAGE_SHORTHAND
 from .wordFiltering import split_multitext_entries, convert_to_single_token, remove_non_single_token_entries
 from transformers import AutoTokenizer
 import pandas as pd
@@ -26,9 +26,9 @@ def load_datasets(
 
     if source in source_types['word']:
         # Load words
-        if lang in ["japanese", "jpn"]:
+        if lang in LANGUAGE_LONGHAND["Japanese"]:
             data = loadRedditPairs("Japanese")
-        elif lang in ["spanish", "esp"]:
+        elif lang in LANGUAGE_LONGHAND["Spanish"]:
             data = loadRedditPairs("Spanish")
         elif lang in ["all", "a"]:
             data = {
@@ -57,12 +57,15 @@ def load_datasets(
     
     elif source in source_types["sentence"]:
         # Load sentences
-        if lang in ["japanese", "jpn"]:
-            data = loadTatoebaPairs("English", ["Japanese"])
-        elif lang in ["spanish", "esp"]:
-            data = loadTatoebaPairs("English", ["Spanish"])
+        if lang in LANGUAGE_LONGHAND["Japanese"]:
+            data = loadTatoebaPairs("English", "Japanese")
+        elif lang in LANGUAGE_LONGHAND["Spanish"]:
+            data = loadTatoebaPairs("English", "Spanish")
         elif lang in ["all", "a"]:
-            data = loadTatoebaPairs("English", ["Japanese", "Spanish"])
+            data = {
+                "jpn": loadTatoebaPairs("English", "Japanese"),
+                "spn": loadTatoebaPairs("English", "Spanish"),
+            }
         else:
             raise ValueError(f"Unsupported language: {lang}")
         
