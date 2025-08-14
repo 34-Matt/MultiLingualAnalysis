@@ -51,8 +51,6 @@ for row in dataset.iterrows():
     # Tokenize the words
     tokens_english = tokenizer.tokenize(word_english)
     tokens_lang = tokenizer.tokenize(word_lang)
-    print(tokens_lang)
-    dfasdf
 
     # Check if original word is multi-token
     tokens_english_original_length = len(tokens_english)
