@@ -70,5 +70,4 @@ def my_pca(X: np.ndarray, n_components: int = 2) -> Tuple[np.ndarray, np.ndarray
         mean.append(np.mean(X, axis=0))
     
     # Project the data onto the lower-dimensional space defined by the mean vectors
-    print
     return project_to_lower_dim(original_X, mean)

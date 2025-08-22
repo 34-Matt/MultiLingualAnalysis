@@ -13,10 +13,25 @@ def tokenize(model: Union[HookedTransformer, AutoTokenizer], text: str) -> List[
     '''
     if isinstance(model, HookedTransformer):
         return model.to_tokens(text, prepend_bos=False).flatten().tolist()
-    elif isinstance(model, AutoTokenizer):
-        return model.tokenize(text)
+    #elif isinstance(model, AutoTokenizer):
     else:
-        raise TypeError(f"Unable to work is model of type: {type(model)}")
+        return model.tokenize(text)
+    #else:
+        #raise TypeError(f"Unable to work is model of type: {type(model)}")
+
+def detokenize(model: Union[HookedTransformer, AutoTokenizer], tokens: List[int]) -> str:
+    '''Converts input tokens to text.
+    
+    Args:
+        model (HookedTransformer | Autoencoder): The transformer model
+        tokens (List[int]): The list of tokens
+    '''
+    if isinstance(model, HookedTransformer):
+        return model.to_string(tokens)
+    else:
+        return model.decode(tokens)
+    #else:
+        #raise TypeError(f"Unable to work is model of type: {type(model)}")
 
 def is_single_token_filter(model: HookedTransformer, text: str) -> bool:
     '''Filters out text that consists of more than one token.
