@@ -19,7 +19,19 @@ def load_datasets(
         remove_non_single_token: bool = False,
         keep_tokens: bool = False
         ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
-    """Load datasets based on language and dataset type."""
+    """Quick method for loading datasets based on language and dataset type.
+    
+    Args:
+        lang (str): The language to load (jpn, esp, or all)
+        source (str): The source to load the data from (reddit, tatoeba)
+        model (AutoTokenizer): The model to analyze the tokens (only required if removing non-single token entries)
+        filter_words (bool): If true, will filter the entries from word sources for excess tokens corresponding to additional words (i.e. English: a, the; Spanish: el, la; Japanese ほ, で)
+        remove_non_single_token (bool): If true, will remove entries some word sources where both languages consist of more than one token
+        keep_tokens (bool): If true, will leave the 'lang1_tokens' and 'lang2_tokens' when removing non-single token entries
+    
+    Returns:
+        dataset (pd.DataFrame | Dict[str, pd.DataFrame]): The dataset of languages (if all, return a dictionary of datasets with keys being the longform name of the language)
+    """
     # Validate inputs
     lang = lang.lower()
     source = source.lower()

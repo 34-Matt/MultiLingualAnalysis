@@ -31,15 +31,18 @@ def parse_args() -> argparse.Namespace:
                         help="Add to run comparisons on single token embedding.")
     parser_action.add_argument("residual", action="store_true",
                         help="Add to run comparisons on single token words across the models.")
+    parser_action.add_argument("translate", action="store_true",
+                        help="Add to run comparison on model output production.")
 
     return parser.parse_args()
 
-def load_info(args: argparse.Namespace) -> Tuple[Union[pd.DataFrame, Dict[str, pd.DataFrame]], HookedTransformer]:
+def load_info(args: argparse.Namespace, single_token=True) -> Tuple[Union[pd.DataFrame, Dict[str, pd.DataFrame]], HookedTransformer]:
     """
     Load the necessary information for the analysis.
     
     Args:
         args: Command line arguments containing model and dataset information.
+        single_token: Whether a word should be converted to single token or not.
     
     Returns:
         words (pd.DataFrame | Dict[str, pd.DataFrame]): DataFrame containing the words from the dataset (if all is selected for words, will return a list of dictionaries.).
@@ -57,7 +60,7 @@ def load_info(args: argparse.Namespace) -> Tuple[Union[pd.DataFrame, Dict[str, p
         raise ValueError("Unsupported model. Choose 'gemma' or 'pythia'.")
     
     # Load dataset
-    dataset = load_datasets(args.lang, args.source, model=model, remove_non_single_token=True, keep_tokens=True)
+    dataset = load_datasets(args.lang, args.source, model=model, remove_non_single_token=single_token, keep_tokens=True)
 
     return dataset, model
 
@@ -250,6 +253,21 @@ def _residualCompare_single(
 
 def _residualCompare_multiple(args: argparse.Namespace, dataset: pd.DataFrame, model: HookedTransformer):
     pass
+
+
+def translateCompare(args: argparse.Namespace) -> None:
+    '''Main function for comparing translate across the model.
+    
+    Args:
+        args (argparse.Namespace): Parsed command line arguments.
+    '''
+    # Loads info
+    print("Loading dataset and model...")
+    if args.source in source_types['word']:
+        raise NotImplementedError("Sentence comparison is not implemented for comparing residuals.")
+
+    dataset, model = load_info(args)
+
 
 if __name__ == "__main__":
     args = parse_args()

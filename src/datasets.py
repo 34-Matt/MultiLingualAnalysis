@@ -290,7 +290,7 @@ if __name__ == "__main__":
                         EXAMPLE_TRANSLATION_TEXT["English2Japanese"],
                         cur_data['lang1'],
                         cur_data['lang2'],
-                        os.path.join("Downloads", "English2JapaneseTranslate.csv"),
+                        os.path.join("Downloads", "English2JapaneseTranslate.jsonl"),
                         existing_file,
                         dataset.title(),
                         "English2Japanese"
@@ -299,7 +299,7 @@ if __name__ == "__main__":
                         EXAMPLE_TRANSLATION_TEXT["Japanese2English"],
                         cur_data['lang2'],
                         cur_data['lang1'],
-                        os.path.join("Downloads", "Japanese2EnglishTranslate.csv"),
+                        os.path.join("Downloads", "Japanese2EnglishTranslate.jsonl"),
                         existing_file,
                         dataset.title(),
                         "Japanese2English"
@@ -309,7 +309,7 @@ if __name__ == "__main__":
                         EXAMPLE_TRANSLATION_TEXT["English2Spanish"],
                         cur_data['lang1'],
                         cur_data['lang2'],
-                        os.path.join("Downloads", "English2SpanishTranslate.csv"),
+                        os.path.join("Downloads", "English2SpanishTranslate.jsonl"),
                         existing_file,
                         dataset.title(),
                         "English2Spanish"
@@ -318,7 +318,7 @@ if __name__ == "__main__":
                         EXAMPLE_TRANSLATION_TEXT["Spanish2English"],
                         cur_data['lang2'],
                         cur_data['lang1'],
-                        os.path.join("Downloads", "Spanish2EnglishTranslate.csv"),
+                        os.path.join("Downloads", "Spanish2EnglishTranslate.jsonl"),
                         existing_file,
                         dataset.title(),
                         "Spanish2English"
